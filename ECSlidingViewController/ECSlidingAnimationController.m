@@ -24,12 +24,29 @@
 #import "ECSlidingAnimationController.h"
 #import "ECSlidingConstants.h"
 
+#define kDimmingValue   0.7 // [0.0-1.0]
+
 @interface ECSlidingAnimationController ()
 @property (nonatomic, copy) void (^coordinatorAnimations)(id<UIViewControllerTransitionCoordinatorContext>context);
 @property (nonatomic, copy) void (^coordinatorCompletion)(id<UIViewControllerTransitionCoordinatorContext>context);
+
+@property (nonatomic, strong) UIView *dimmingView;
+
 @end
 
 @implementation ECSlidingAnimationController
+
+- (id)init
+{
+    self = [super init];
+    if (self)
+    {
+        _dimmingView = [[UIView alloc] init];
+        _dimmingView.backgroundColor = [UIColor blackColor];
+    }
+    
+    return self;
+}
 
 #pragma mark - UIViewControllerAnimatedTransitioning
 
@@ -43,14 +60,18 @@
 
 - (void)animateTransition:(id <UIViewControllerContextTransitioning>)transitionContext {
     UIViewController *topViewController = [transitionContext viewControllerForKey:ECTransitionContextTopViewControllerKey];
-    UIViewController *toViewController  = [transitionContext viewControllerForKey:UITransitionContextToViewControllerKey];
+    UIViewController *toViewController = [transitionContext viewControllerForKey:UITransitionContextToViewControllerKey];
     UIView *containerView = [transitionContext containerView];
     CGRect topViewInitialFrame = [transitionContext initialFrameForViewController:topViewController];
-    CGRect topViewFinalFrame   = [transitionContext finalFrameForViewController:topViewController];
+    CGRect topViewFinalFrame = [transitionContext finalFrameForViewController:topViewController];
     
     topViewController.view.frame = topViewInitialFrame;
     
     if (topViewController != toViewController) {
+        self.dimmingView.frame = topViewController.view.bounds;
+        self.dimmingView.alpha = 0.0;
+        [topViewController.view addSubview:self.dimmingView];
+        
         CGRect toViewFinalFrame = [transitionContext finalFrameForViewController:toViewController];
         toViewController.view.frame = toViewFinalFrame;
         [containerView insertSubview:toViewController.view belowSubview:topViewController.view];
@@ -60,10 +81,23 @@
     [UIView animateWithDuration:duration animations:^{
         [UIView setAnimationCurve:UIViewAnimationCurveLinear];
         if (self.coordinatorAnimations) self.coordinatorAnimations((id<UIViewControllerTransitionCoordinatorContext>)transitionContext);
+        
         topViewController.view.frame = topViewFinalFrame;
+        self.dimmingView.alpha = (topViewController != toViewController) ? kDimmingValue : 0.0;
+        
     } completion:^(BOOL finished) {
         if ([transitionContext transitionWasCancelled]) {
             topViewController.view.frame = [transitionContext initialFrameForViewController:topViewController];
+            
+            if (topViewController != toViewController) {
+                [self.dimmingView removeFromSuperview];
+            } else {
+                self.dimmingView.alpha = kDimmingValue;
+            }
+        } else {
+            if (topViewController == toViewController) {
+                [self.dimmingView removeFromSuperview];
+            }
         }
         
         if (self.coordinatorCompletion) self.coordinatorCompletion((id<UIViewControllerTransitionCoordinatorContext>)transitionContext);
